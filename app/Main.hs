@@ -7,7 +7,6 @@ import Semux (getLastCoinbase)
 import Discord (alert)
 import System.Environment
 import Data.Time.Clock
-import Control.Monad
 
 main :: IO ()
 main = do
@@ -28,10 +27,12 @@ main = do
     else
       putStrLn $ "Last COINBASE was " ++ show lastCoinbase ++ " that is " ++ show diff ++ " seconds ago. OK."
 
+diffSeconds :: UTCTime -> UTCTime -> Int
 diffSeconds t1 t2 =
   let (res, _) = properFraction $ diffUTCTime t1 t2
   in res
 
+alertMessage :: String -> UTCTime -> Int -> String
 alertMessage delegate lastCoinbase diff =
   "Alert! `"
     ++ delegate

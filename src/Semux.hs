@@ -7,17 +7,13 @@ module Semux (getLastCoinbase) where
 import Data.Text
 import Data.List
 import Data.Time
-import Data.Either
 import Data.Maybe
-import Data.Int
-import Control.Applicative
 import Data.Aeson
-import Data.Aeson.Types
-import GHC.Generics
-import GHC.List
+import GHC.Generics (Generic)
 import qualified Data.ByteString.Lazy as B
 import Network.HTTP.Conduit (simpleHttp)
 
+pageSize :: Int
 pageSize = 100
 
 getLastCoinbase :: String -> String -> IO UTCTime
@@ -75,7 +71,7 @@ data Transaction = Transaction
  } deriving (Show)
 
 instance FromJSON Transaction where
-  parseJSON (Object v) = Transaction
+  parseJSON = withObject "Transaction" $ \v -> Transaction
     <$> fmap textToUTC (v .: "timestamp")
     <*> v .: "type"
 

@@ -13,5 +13,5 @@ alert webhookUrl message = do
        $ setRequestBodyLBS (fromString ("{\"content\":\"" ++ message ++ "\"}"))
        $ fromString webhookUrl
 
-  response <- httpNoBody request
+  _ <- httpNoBody request
   return ()
