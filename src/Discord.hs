@@ -3,7 +3,8 @@
 module Discord (alert) where
 
 import Network.HTTP.Simple
-import Data.String
+import Data.String (fromString)
+import Control.Monad (void)
 
 alert :: String -> String -> IO ()
 alert webhookUrl message = do
@@ -13,5 +14,4 @@ alert webhookUrl message = do
        $ setRequestBodyLBS (fromString ("{\"content\":\"" ++ message ++ "\"}"))
        $ fromString webhookUrl
 
-  _ <- httpNoBody request
-  return ()
+  void $ httpNoBody request

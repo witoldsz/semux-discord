@@ -29,18 +29,15 @@ getLastCoinbase semuxApi delegate = do
       response <- getTransactions semuxApi delegate txRange
       let txsRev = (Data.List.reverse . result) response
       let lastCoinbase = Data.List.find (\i -> transactionType i == "COINBASE") txsRev
-      solution lastCoinbase
+      case lastCoinbase of
+        Just coinbase -> return coinbase
+        Nothing
+          | from > 0  -> findLastCoinbase from
+          | otherwise -> fail "No COINBASE found"
+
       where
         from = max 0 (lastTx - pageSize)
         txRange = (from, lastTx)
-
-        solution :: Maybe Transaction -> IO Transaction
-        solution (Just coinbase ) =
-          return coinbase
-        solution Nothing =
-          if from > 0
-            then findLastCoinbase from
-            else fail "No COINBASE found"
 
 -- Account
 data Account = Account
