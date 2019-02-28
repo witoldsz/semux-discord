@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Discord (alert) where
+module DiscordHook (alert) where
 
 import Network.HTTP.Simple
 import Data.String (fromString)

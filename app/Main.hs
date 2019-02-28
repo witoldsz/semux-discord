@@ -4,7 +4,7 @@
 module Main where
 
 import Semux (getLastCoinbase)
-import Discord (alert)
+import DiscordHook (alert)
 import System.Environment
 import Data.Time.Clock
 
