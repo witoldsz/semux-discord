@@ -2,3 +2,5 @@
 semux-discord.cabal
 *~
 /start.sh
+/repl.sh
+db.json

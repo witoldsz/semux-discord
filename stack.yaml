@@ -38,8 +38,8 @@ packages:
 # using the same syntax as the packages field.
 # (e.g., acme-missiles-0.3)
 extra-deps:
-- git: git@github.com:witoldsz/discord-haskell.git
-  commit: a085c67637add4b46636bc3ad9b4350d6d8f0d99
+- git: git@github.com:aquarial/discord-haskell.git
+  commit: ce3b6d317520f77ccc4f9db61ab5a7591572f9df
   extra-dep: true
 
 # Override default flag values for local packages and extra-deps

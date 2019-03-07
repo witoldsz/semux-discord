@@ -1,43 +1,59 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE NumDecimals       #-}
 
 module Main where
 
-import Semux (getLastCoinbase)
-import DiscordHook (alert)
+import qualified Data.Text as T
+import qualified Data.Text.IO as TIO
+import Prelude hiding (log)
 import System.Environment
-import Data.Time.Clock
+import Data.Aeson
+import App.Db
+import App.Lib (rightOrError, log, logEmptyLine, logJ, logText, logStr)
+import App.Semux
+import Discord
+import Control.Exception.Base
+import Control.Concurrent
+import Data.Maybe (fromMaybe)
 
 main :: IO ()
 main = do
   semuxApi <- getEnv "SEMUX_API"
-  delegate <- getEnv "DELEGATE"
-  webhookUrl <- getEnv "WEBHOOK_URL"
-  alertAfterSecs <- read <$> getEnv "ALERT_AFTER_SECS" :: IO Int
+  token <- getEnv "DISCORD_SECRET"
+  chanid <- getEnv "DISCORD_CHANNEL_ID"
 
-  lastCoinbase <- getLastCoinbase semuxApi delegate
-  now <- getCurrentTime
-  let diff = diffSeconds now lastCoinbase
+  logEmptyLine
 
-  if (diff > alertAfterSecs)
-    then do
-      let msg = alertMessage delegate lastCoinbase diff
-      alert webhookUrl msg
-      putStrLn msg
-    else
-      putStrLn $ "Last COINBASE was " ++ show lastCoinbase ++ " that is " ++ show diff ++ " seconds ago. OK."
+  db <- rightOrError "error reading db" $ eitherDecodeFileStrict "./db.json" :: IO AppDb
+  logJ db
 
-diffSeconds :: UTCTime -> UTCTime -> Int
-diffSeconds t1 t2 =
-  let (res, _) = properFraction $ diffUTCTime t1 t2
-  in res
+  bracket (loginRestGateway (Auth token))
+          stopDiscord
+          (useDiscord db)
 
-alertMessage :: String -> UTCTime -> Int -> String
-alertMessage delegate lastCoinbase diff =
-  "Alert! `"
-    ++ delegate
-    ++ "` hasn't forged since `"
-    ++ show lastCoinbase
-    ++ "` (i.e. "
-    ++ show diff
-    ++ " seconds ago). This isn't good."
+  return ()
+
+  where
+    useDiscord :: AppDb -> Discord -> IO ()
+    useDiscord db dis = do
+      let latestBlockNumber = dbLatestBlockNumber db
+      maybeBlock <- getBlock semuxApi latestBlockNumber
+      nextBlockNumber <- case maybeBlock of
+        Just block -> do
+          let nextBlockNumber = blockNumber block
+          let userWallets = dbUserWallets db
+          let msg = T.pack $ "`" ++ show db ++ "`\n`" ++ show block ++ "`"
+          -- restCall dis $ CreateMessage chanid msg
+          logText msg
+          return $ Just nextBlockNumber
+
+        Nothing ->
+          return latestBlockNumber
+
+      logStr $ "nextBlockNumber = " ++ show nextBlockNumber
+      logText "Will sleep 10 secs…"
+      threadDelay 10e6
+      useDiscord (db { dbLatestBlockNumber = nextBlockNumber }) dis
+
+type Discord = (RestChan, Gateway, [ThreadIdType])
