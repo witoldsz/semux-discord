@@ -1,6 +1,8 @@
 .stack-work/
 semux-discord.cabal
 *~
+
 /start.sh
 /repl.sh
-db.json
+/env.sh
+/db.json

@@ -16,7 +16,7 @@ import Debug.Trace
 
 getBlock :: String -> Maybe Int32 -> IO (Maybe SemuxBlock)
 getBlock semuxApi blockNumber =
-  result <$> getSemuxBlock (semuxApi ++ path)
+  _result <$> getSemuxBlock (semuxApi ++ path)
   where
     path = case blockNumber of
       Just n  -> "block-by-number?number=" ++ show (1 + n)
@@ -24,18 +24,19 @@ getBlock semuxApi blockNumber =
 
 -- ApiResponse
 data ApiResponse a = ApiResponse
-     { success :: Bool
-     , message :: !Text
-     , result :: Maybe a
+     { _success :: Bool
+     , _message :: !Text
+     , _result :: Maybe a
      } deriving (Show, Generic)
+
+instance FromJSON a => FromJSON (ApiResponse a) where
+  parseJSON = genericParseJSON defaultOptions { fieldLabelModifier = Data.List.drop 1 }
 
 -- Block
 data SemuxBlock = SemuxBlock
   { blockNumber :: Int32
   , blockTxs :: [SemuxTx]
   } deriving (Show)
-
-instance FromJSON (ApiResponse SemuxBlock)
 
 instance FromJSON SemuxBlock where
   parseJSON = withObject "SemuxBlock" $ \o ->

@@ -4,7 +4,7 @@
 
 module Main where
 
-import qualified Data.Text as T
+import Data.Text (Text, pack)
 import qualified Data.Text.IO as TIO
 import Prelude hiding (log)
 import System.Environment
@@ -17,11 +17,13 @@ import Control.Exception.Base
 import Control.Concurrent
 import Data.Maybe (fromMaybe)
 
+type Discord = (RestChan, Gateway, [ThreadIdType])
+
 main :: IO ()
 main = do
   semuxApi <- getEnv "SEMUX_API"
-  token <- getEnv "DISCORD_SECRET"
-  chanid <- getEnv "DISCORD_CHANNEL_ID"
+  token <- pack <$> getEnv "DISCORD_SECRET"
+  -- chanid <- getEnv "DISCORD_CHANNEL_ID"
 
   logEmptyLine
 
@@ -30,22 +32,25 @@ main = do
 
   bracket (loginRestGateway (Auth token))
           stopDiscord
-          (useDiscord db)
+          (useDiscord semuxApi db)
 
   return ()
 
   where
-    useDiscord :: AppDb -> Discord -> IO ()
-    useDiscord db dis = do
+    useDiscord :: String -> AppDb -> Discord -> IO ()
+    useDiscord semuxApi db dis = do
       let latestBlockNumber = dbLatestBlockNumber db
       maybeBlock <- getBlock semuxApi latestBlockNumber
       nextBlockNumber <- case maybeBlock of
         Just block -> do
           let nextBlockNumber = blockNumber block
-          let userWallets = dbUserWallets db
-          let msg = T.pack $ "`" ++ show db ++ "`\n`" ++ show block ++ "`"
-          -- restCall dis $ CreateMessage chanid msg
-          logText msg
+
+          let msgs = message <$> matchTxsToWallets (blockTxs block) (dbUserWallets db)
+
+
+          let msg = pack $ "`" ++ show db ++ "`\n`" ++ show block ++ "`"
+          restCall dis $ CreateMessage 551523909074288677 msg
+          --logText msg
           return $ Just nextBlockNumber
 
         Nothing ->
@@ -54,6 +59,15 @@ main = do
       logStr $ "nextBlockNumber = " ++ show nextBlockNumber
       logText "Will sleep 10 secs…"
       threadDelay 10e6
-      useDiscord (db { dbLatestBlockNumber = nextBlockNumber }) dis
 
-type Discord = (RestChan, Gateway, [ThreadIdType])
+      let newDb = db { dbLatestBlockNumber = nextBlockNumber }
+      useDiscord semuxApi newDb dis
+
+matchTxsToWallets :: [SemuxTx] -> [UserWallet] -> [(SemuxTx, UserWallet)]
+matchTxsToWallets txs wallets =
+  undefined
+
+message :: (SemuxTx , UserWallet) -> Text
+message a =
+  undefined
+
