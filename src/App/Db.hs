@@ -3,16 +3,26 @@
 
 module App.Db where
 
+import App.Lib
 import Discord.Types.Prelude (UserId, ChannelId)
 import Data.Text (Text)
 import Data.Int (Int32)
 import Data.Aeson
+import Data.Text.IO
+
+readDb :: IO AppDb
+readDb =
+  rightOrError "error reading db" $ eitherDecodeFileStrict "./db.json"
+
+writeDb :: AppDb -> IO ()
+writeDb =
+  Data.Text.IO.writeFile "./db.json" . prettyJson
 
 data UserWallet = UserWallet
-  { uwAddr :: !Text
-  , uwUserId :: !UserId
-  , uwChanId :: !ChannelId
-  , uwLastTx :: !(Maybe Int32)
+  { _uwAddr :: !Text
+  , _uwUserId :: !UserId
+  , _uwChanId :: !ChannelId
+  , _uwLastTx :: !(Maybe Int32)
   } deriving Show
 
 instance FromJSON UserWallet where
@@ -24,15 +34,15 @@ instance FromJSON UserWallet where
 
 instance ToJSON UserWallet where
   toJSON UserWallet {..} = object
-    [ "addr" .= uwAddr
-    , "userId" .= uwUserId
-    , "chanId" .= uwChanId
-    , "lastTx" .= uwLastTx
+    [ "addr" .= _uwAddr
+    , "userId" .= _uwUserId
+    , "chanId" .= _uwChanId
+    , "lastTx" .= _uwLastTx
     ]
 
 data AppDb = AppDb
-  { dbLatestBlockNumber :: Maybe Int32
-  , dbUserWallets :: [UserWallet]
+  { _dbLatestBlockNumber :: Maybe Int32
+  , _dbUserWallets :: [UserWallet]
   } deriving Show
 
 instance FromJSON AppDb where
@@ -42,6 +52,6 @@ instance FromJSON AppDb where
 
 instance ToJSON AppDb where
   toJSON AppDb {..} = object
-    [ "latestBlockNumber" .= dbLatestBlockNumber
-    , "userWallets" .= dbUserWallets
+    [ "latestBlockNumber" .= _dbLatestBlockNumber
+    , "userWallets" .= _dbUserWallets
     ]

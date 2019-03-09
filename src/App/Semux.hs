@@ -13,14 +13,13 @@ import Data.Aeson
 import Data.Decimal
 import GHC.Generics (Generic)
 import Network.HTTP.Simple
-import Debug.Trace
 
 getBlock :: String -> Maybe Int32 -> IO (Maybe SemuxBlock)
 getBlock semuxApi blockNumber =
   _result <$> getSemuxBlock (semuxApi ++ path)
   where
     path = case blockNumber of
-      Just n  -> "block-by-number?number=" ++ show (1 + n)
+      Just n  -> "block-by-number?number=" ++ show n
       Nothing -> "latest-block"
 
 -- ApiResponse
@@ -35,8 +34,8 @@ instance FromJSON a => FromJSON (ApiResponse a) where
 
 -- Block
 data SemuxBlock = SemuxBlock
-  { blockNumber :: Int32
-  , blockTxs :: [SemuxTx]
+  { _blockNumber :: Int32
+  , _blockTxs :: [SemuxTx]
   } deriving (Show)
 
 instance FromJSON SemuxBlock where
@@ -50,12 +49,12 @@ getSemuxBlock url =
 
 -- Transaction
 data SemuxTx = SemuxTx
- { txTimestamp :: UTCTime
- , txType :: !Text
- , txFrom :: !Text
- , txTo :: !Text
- , txValue :: !Int64
- , txHash :: !Text
+ { _txTimestamp :: UTCTime
+ , _txType :: !Text
+ , _txFrom :: !Text
+ , _txTo :: !Text
+ , _txValue :: !Int64
+ , _txHash :: !Text
  } deriving (Show)
 
 instance FromJSON SemuxTx where

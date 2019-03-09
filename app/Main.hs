@@ -3,87 +3,65 @@
 {-# LANGUAGE NumDecimals       #-}
 {-# LANGUAGE RecordWildCards   #-}
 
-
 module Main where
 
-import Data.Text (Text, pack)
-import qualified Data.Text.IO as TIO
-import Prelude hiding (log)
+import Prelude hiding (mapM_)
 import System.Environment
-import Data.Aeson
+import Data.Text
 import App.Db
-import App.Lib (rightOrError, log, logEmptyLine, logJ, logText, logStr)
+import App.Lib
 import App.Semux
-import Discord
-import Control.Exception.Base
+import App.Discord
 import Control.Concurrent
-import Data.Maybe (fromMaybe)
-
-type Discord = (RestChan, Gateway, [ThreadIdType])
+import Data.Foldable (mapM_)
 
 main :: IO ()
 main = do
   semuxApi <- getEnv "SEMUX_API"
-  token <- pack <$> getEnv "DISCORD_SECRET"
-  -- chanid <- getEnv "DISCORD_CHANNEL_ID"
+  token <- getEnv "DISCORD_SECRET"
 
   logEmptyLine
 
-  db <- rightOrError "error reading db" $ eitherDecodeFileStrict "./db.json" :: IO AppDb
-  logJ db
-
-  bracket (loginRestGateway (Auth token))
-          stopDiscord
-          (useDiscord semuxApi db)
+  startDiscord token (useDiscord semuxApi)
 
   return ()
 
-  where
-    useDiscord :: String -> AppDb -> Discord -> IO ()
-    useDiscord semuxApi db dis = do
-      let latestBlockNumber = dbLatestBlockNumber db
-      maybeBlock <- getBlock semuxApi latestBlockNumber
-      nextBlockNumber <- case maybeBlock of
-        Just block -> do
-          let nextBlockNumber = blockNumber block
+useDiscord :: String -> Discord -> IO ()
+useDiscord semuxApi discord = do
 
-          sequence_ $
-            sendMessage dis messageFormatter
-              <$> matchTxsToWallets (dbUserWallets db) (blockTxs block)
+  db <- readDb
+  let latestBlockNumber = _dbLatestBlockNumber db
+  maybeBlock <- getBlock semuxApi $ (+1) <$> latestBlockNumber
 
-          -- restCall dis $ CreateMessage 551523909074288677 undefined
-          -- logText msg
-          return $ Just nextBlockNumber
+  mapM_
+    (\block -> do
+      let blockNr = _blockNumber block
+      logStr $ "Processing block #" ++ show blockNr
+      mapM_
+        (sendMessage discord messageFormatter)
+        (matchTxsToWallets (_dbUserWallets db) (_blockTxs block))
 
-        Nothing ->
-          return latestBlockNumber
+      let newDb = db { _dbLatestBlockNumber = Just blockNr }
+      writeDb newDb
+    )
+    maybeBlock
 
-      logStr $ "nextBlockNumber = " ++ show nextBlockNumber
-      logText "Will sleep 10 secs…"
-      threadDelay 10e6
+  logText "Will sleep 10 secs…"
+  threadDelay 10e6
 
-      let newDb = db { dbLatestBlockNumber = nextBlockNumber }
-      useDiscord semuxApi newDb dis
+  useDiscord semuxApi discord
 
 matchTxsToWallets :: [UserWallet] -> [SemuxTx] -> [(UserWallet, SemuxTx)]
 matchTxsToWallets uws txs =
-    [(uw, tx) | uw <- uws, tx <- txs, uwAddr uw == txTo tx, txType tx == "TRANSFER"]
+  [(uw, tx) | uw <- uws, tx <- txs, _uwAddr uw == _txTo tx, _txType tx == "TRANSFER"]
 
 messageFormatter :: (UserWallet, SemuxTx) -> Text
 messageFormatter (UserWallet{..}, SemuxTx{..}) =
   mconcat
-    [ "Incoming transfer: https://semux.info/explorer/transaction/", txHash
-    , "\n```"
-    , "\n📥 ", shortAddr txTo
-    , "\n💰 ", formatSem txValue, " SEM "
-    , "\n📤 ", shortAddr txFrom
+    [ "```"
+    , "\nIncoming transfer"
+    , "\n📥 ", shortAddr _txTo
+    , "\n💰 ", formatSem _txValue, " SEM "
+    , "\n📤 ", shortAddr _txFrom
     , "\n```"
     ]
-
-sendMessage :: Discord
-            -> ((UserWallet, SemuxTx) -> Text)
-            -> (UserWallet, SemuxTx)
-            -> IO (Either RestCallException Message)
-sendMessage dis formatter (uw, tx) = do
-  logText "sending message…"
-  restCall dis $ CreateMessage (uwChanId uw) (formatter (uw, tx))
