@@ -14,6 +14,7 @@ description: >-
 dependencies:
   - base >= 4.7 && < 5
   - text
+  - Decimal
   - aeson
   - aeson-pretty
   - bytestring

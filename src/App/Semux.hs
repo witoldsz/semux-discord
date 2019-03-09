@@ -10,6 +10,7 @@ import Data.Time
 import Data.Int (Int32, Int64)
 import Data.Maybe
 import Data.Aeson
+import Data.Decimal
 import GHC.Generics (Generic)
 import Network.HTTP.Simple
 import Debug.Trace
@@ -54,6 +55,7 @@ data SemuxTx = SemuxTx
  , txFrom :: !Text
  , txTo :: !Text
  , txValue :: !Int64
+ , txHash :: !Text
  } deriving (Show)
 
 instance FromJSON SemuxTx where
@@ -63,8 +65,17 @@ instance FromJSON SemuxTx where
             <*> o .: "from"
             <*> o .: "to"
             <*> fmap read (o .: "value")
+            <*> o .: "hash"
 
 -- UTCTime
 textToUTC :: Text -> UTCTime
 textToUTC =
   fromJust . parseTimeM False defaultTimeLocale "%s" . unpack . Data.Text.take 10
+
+formatSem :: Int64 -> Text
+formatSem =
+  pack. show . normalizeDecimal . Decimal 9
+
+shortAddr :: Text -> Text
+shortAddr a =
+  Data.Text.take 6 a <> "…" <> takeEnd 4 a
