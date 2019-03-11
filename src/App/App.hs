@@ -15,20 +15,25 @@ import Control.Concurrent
 import Data.Foldable (mapM_)
 
 data Configuration = Configuration
-  { _semuxApiUrl :: String
-  , _dicordSecret :: String
+  { semuxApiUrl :: String
+  , dicordSecret :: String
   }
 
 app :: Configuration -> IO ()
 app Configuration{..} =
-  startDiscord _dicordSecret useDiscord
+  startDiscord dicordSecret useDiscord
   where
     useDiscord :: Discord -> IO ()
     useDiscord discord = do
 
       db <- readDb
+      querySemuxForNewBlocks discord db
+
+      useDiscord discord
+
+    querySemuxForNewBlocks discord db = do
       let latestBlockNumber = _dbLatestBlockNumber db
-      maybeBlock <- getBlock _semuxApiUrl $ (+1) <$> latestBlockNumber
+      maybeBlock <- getBlock semuxApiUrl $ (+1) <$> latestBlockNumber
 
       mapM_
         (\block -> do
@@ -38,15 +43,12 @@ app Configuration{..} =
             (sendMessage discord messageFormatter)
             (matchTxsToWallets (_dbUserWallets db) (_blockTxs block))
 
-          let newDb = db { _dbLatestBlockNumber = Just blockNr }
-          writeDb newDb
+          writeDb (\newDb -> newDb { _dbLatestBlockNumber = Just blockNr })
         )
         maybeBlock
 
       logText "Will sleep 10 secs…"
       threadDelay 10e6
-
-      useDiscord discord
 
 matchTxsToWallets :: [UserWallet] -> [SemuxTx] -> [(UserWallet, SemuxTx)]
 matchTxsToWallets uws txs =

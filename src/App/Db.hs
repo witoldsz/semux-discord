@@ -14,9 +14,10 @@ readDb :: IO AppDb
 readDb =
   rightOrError "error reading db" $ eitherDecodeFileStrict "./db.json"
 
-writeDb :: AppDb -> IO ()
-writeDb =
-  Data.Text.IO.writeFile "./db.json" . prettyJson
+writeDb :: (AppDb -> AppDb) -> IO ()
+writeDb updFn =
+  updFn <$> readDb >>=
+    Data.Text.IO.writeFile "./db.json" . prettyJson
 
 data UserWallet = UserWallet
   { _uwAddr :: !Text

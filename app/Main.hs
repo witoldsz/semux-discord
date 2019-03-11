@@ -9,6 +9,6 @@ import System.Environment
 
 main :: IO ()
 main = do
-  _semuxApiUrl <- getEnv "SEMUX_API"
-  _dicordSecret <- getEnv "DISCORD_SECRET"
+  semuxApiUrl <- getEnv "SEMUX_API"
+  dicordSecret <- getEnv "DISCORD_SECRET"
   app Configuration{..}
