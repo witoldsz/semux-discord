@@ -9,16 +9,41 @@ import Data.Text (Text)
 import Data.Int (Int32)
 import Data.Aeson
 import Data.Text.IO
+import Control.Concurrent.MVar
 
-readDb :: IO AppDb
-readDb =
+readDb dbLock =
+  readMVar dbLock >> readDb'
+
+writeDb dbLock updFn =
+  takeMVar dbLock >> writeDb' updFn >> putMVar dbLock ()
+
+readDb' :: IO AppDb
+readDb' =
   rightOrError "error reading db" $ eitherDecodeFileStrict "./db.json"
 
-writeDb :: (AppDb -> AppDb) -> IO ()
-writeDb updFn =
-  updFn <$> readDb >>=
+writeDb' :: (AppDb -> AppDb) -> IO ()
+writeDb' updFn =
+  updFn <$> readDb' >>=
     Data.Text.IO.writeFile "./db.json" . prettyJson
 
+-- AppDb
+data AppDb = AppDb
+  { _dbLatestBlockNumber :: Maybe Int32
+  , _dbUserWallets :: [UserWallet]
+  } deriving Show
+
+instance FromJSON AppDb where
+  parseJSON = withObject "AppDb" $ \o ->
+    AppDb <$> o .: "latestBlockNumber"
+          <*> o .: "userWallets"
+
+instance ToJSON AppDb where
+  toJSON AppDb {..} = object
+    [ "latestBlockNumber" .= _dbLatestBlockNumber
+    , "userWallets" .= _dbUserWallets
+    ]
+
+-- UserWallet
 data UserWallet = UserWallet
   { _uwAddr :: !Text
   , _uwUserId :: !UserId
@@ -39,20 +64,4 @@ instance ToJSON UserWallet where
     , "userId" .= _uwUserId
     , "chanId" .= _uwChanId
     , "lastTx" .= _uwLastTx
-    ]
-
-data AppDb = AppDb
-  { _dbLatestBlockNumber :: Maybe Int32
-  , _dbUserWallets :: [UserWallet]
-  } deriving Show
-
-instance FromJSON AppDb where
-  parseJSON = withObject "AppDb" $ \o ->
-    AppDb <$> o .: "latestBlockNumber"
-          <*> o .: "userWallets"
-
-instance ToJSON AppDb where
-  toJSON AppDb {..} = object
-    [ "latestBlockNumber" .= _dbLatestBlockNumber
-    , "userWallets" .= _dbUserWallets
     ]

@@ -12,6 +12,8 @@ import App.Lib
 import App.Semux
 import App.Discord
 import Control.Concurrent
+import Control.Monad
+import Control.Exception.Base
 import Data.Foldable (mapM_)
 
 data Configuration = Configuration
@@ -20,18 +22,21 @@ data Configuration = Configuration
   }
 
 app :: Configuration -> IO ()
-app Configuration{..} =
-  startDiscord dicordSecret useDiscord
+app Configuration{..} = do
+  dbLock <- newMVar ()
+  startDiscord dicordSecret (useDiscord dbLock semuxApiUrl)
+
+useDiscord :: MVar () -> String -> Discord -> IO ()
+useDiscord dbLock semuxApiUrl discord =
+
+  bracket
+    (forkIO $ forever querySemuxForNewBlocks)
+    killThread
+    (\_ -> threadDelay (100 * 1e6))
+
   where
-    useDiscord :: Discord -> IO ()
-    useDiscord discord = do
-
-      db <- readDb
-      querySemuxForNewBlocks discord db
-
-      useDiscord discord
-
-    querySemuxForNewBlocks discord db = do
+    querySemuxForNewBlocks = do
+      db <- readDb dbLock
       let latestBlockNumber = _dbLatestBlockNumber db
       maybeBlock <- getBlock semuxApiUrl $ (+1) <$> latestBlockNumber
 
@@ -43,7 +48,7 @@ app Configuration{..} =
             (sendMessage discord messageFormatter)
             (matchTxsToWallets (_dbUserWallets db) (_blockTxs block))
 
-          writeDb (\newDb -> newDb { _dbLatestBlockNumber = Just blockNr })
+          writeDb dbLock (\newDb -> newDb { _dbLatestBlockNumber = Just blockNr })
         )
         maybeBlock
 
