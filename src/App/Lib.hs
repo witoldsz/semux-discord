@@ -6,6 +6,7 @@ import Data.Text (Text, unpack)
 import Data.Text.Encoding (decodeUtf8)
 import Prelude hiding (log)
 import qualified Data.ByteString.Lazy as BSL
+import Control.Concurrent.MVar
 
 rightOrError :: (Monad m) => String -> m (Either String a) -> m a
 rightOrError msg =
@@ -21,18 +22,22 @@ logEmptyLine :: IO ()
 logEmptyLine =
   putStrLn ""
 
-log :: (Show a) => a -> IO ()
-log =
-  logStr . show
-
 logText :: Text -> IO ()
 logText =
   logStr . unpack
 
 logStr :: String -> IO ()
 logStr =
-  putStrLn . (++ "\n")
+  putStrLn
 
 logJson :: (ToJSON a) => a -> IO ()
 logJson =
   logText . prettyJson
+
+type Lock = MVar ()
+
+newLock :: IO Lock
+newLock = newMVar ()
+
+withLock :: IO a -> Lock -> IO a
+withLock io lock = withMVar lock (const io)

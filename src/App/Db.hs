@@ -11,11 +11,13 @@ import Data.Aeson
 import Data.Text.IO
 import Control.Concurrent.MVar
 
-readDb dbLock =
-  readMVar dbLock >> readDb'
+readDb :: Lock -> IO AppDb
+readDb =
+  withLock readDb'
 
-writeDb dbLock updFn =
-  takeMVar dbLock >> writeDb' updFn >> putMVar dbLock ()
+writeDb :: Lock -> (AppDb -> AppDb) -> IO ()
+writeDb lock updFn =
+  withLock (writeDb' updFn) lock
 
 readDb' :: IO AppDb
 readDb' =

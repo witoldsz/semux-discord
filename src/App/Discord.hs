@@ -8,6 +8,8 @@ import App.Db
 import App.Lib
 import Discord
 import Data.Text
+import Data.Maybe
+import Data.Either
 import Control.Exception.Base
 
 type Discord = (RestChan, Gateway, [ThreadIdType])
@@ -18,10 +20,35 @@ startDiscord token =
     (loginRestGateway (Auth (pack token)))
     stopDiscord
 
-sendMessage :: Discord
-            -> ((UserWallet, SemuxTx) -> Text)
-            -> (UserWallet, SemuxTx)
-            -> IO (Either RestCallException Message)
-sendMessage dis formatter (uw, tx) = do
-  logText "sending message…"
-  restCall dis $ CreateMessage (_uwChanId uw) (formatter (uw, tx))
+sendMessage :: Discord -> ChannelId -> Text -> IO (Either RestCallException Message)
+sendMessage discord chan text =
+  restCall discord $ CreateMessage chan text
+
+data DiscordCmd =
+    Hi
+  | Unrecognized Event
+
+nextCmd :: Discord -> (Message -> DiscordCmd -> IO ()) -> IO ()
+nextCmd discord handleCmd = do
+  logEmptyLine
+  logStr "Listening to next event…"
+  e <- nextEvent discord
+  case e of
+    Left err -> logStr (show err)
+    Right (MessageCreate m) -> onMessageCreate m
+    Right evt -> return ()
+  where
+    onMessageCreate m = do
+      logStr (show m)
+      chan <- restCall discord $ GetChannel (messageChannel m)
+      case chan of
+        Left err -> logStr (show err)
+        Right (ChannelDirectMessage _ _ _) -> if shouldIgnoreAuthor m then return ()
+                                                                      else handleCmd m (cmd m)
+        _ -> return ()
+
+    shouldIgnoreAuthor m =
+      fromRight True (userIsBot <$> messageAuthor m)
+
+    cmd :: Message -> DiscordCmd
+    cmd m = Hi
