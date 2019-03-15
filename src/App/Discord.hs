@@ -24,10 +24,6 @@ sendMessage :: Discord -> ChannelId -> Text -> IO (Either RestCallException Mess
 sendMessage discord chan text =
   restCall discord $ CreateMessage chan text
 
-data DiscordCmd =
-    Hi
-  | Unrecognized Event
-
 nextCmd :: Discord -> (Message -> DiscordCmd -> IO ()) -> IO ()
 nextCmd discord handleCmd = do
   logEmptyLine
@@ -50,5 +46,3 @@ nextCmd discord handleCmd = do
     shouldIgnoreAuthor m =
       fromRight True (userIsBot <$> messageAuthor m)
 
-    cmd :: Message -> DiscordCmd
-    cmd m = Hi

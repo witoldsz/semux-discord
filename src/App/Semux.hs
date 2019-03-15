@@ -1,11 +1,13 @@
+{-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE DeriveGeneric     #-}
 {-# LANGUAGE FlexibleInstances #-}
 
 module App.Semux where
 
-import Data.Text
-import Data.List
+import ClassyPrelude
+import Text.Read
+import Data.Text (takeEnd)
 import Data.Time
 import Data.Int (Int32, Int64)
 import Data.Maybe
@@ -16,10 +18,10 @@ import Network.HTTP.Simple
 
 getBlock :: String -> Maybe Int32 -> IO (Maybe SemuxBlock)
 getBlock semuxApi blockNumber =
-  _result <$> getSemuxBlock (semuxApi ++ path)
+  _result <$> getSemuxBlock (semuxApi <> path)
   where
     path = case blockNumber of
-      Just n  -> "block-by-number?number=" ++ show n
+      Just n  -> "block-by-number?number=" <> show n
       Nothing -> "latest-block"
 
 -- ApiResponse
@@ -30,7 +32,7 @@ data ApiResponse a = ApiResponse
      } deriving (Show, Generic)
 
 instance FromJSON a => FromJSON (ApiResponse a) where
-  parseJSON = genericParseJSON defaultOptions { fieldLabelModifier = Data.List.drop 1 }
+  parseJSON = genericParseJSON defaultOptions { fieldLabelModifier = drop 1 }
 
 -- Block
 data SemuxBlock = SemuxBlock
@@ -69,7 +71,7 @@ instance FromJSON SemuxTx where
 -- UTCTime
 textToUTC :: Text -> UTCTime
 textToUTC =
-  fromJust . parseTimeM False defaultTimeLocale "%s" . unpack . Data.Text.take 10
+  fromJust . parseTimeM False defaultTimeLocale "%s" . unpack . take 10
 
 formatSem :: Int64 -> Text
 formatSem =
@@ -77,4 +79,8 @@ formatSem =
 
 shortAddr :: Text -> Text
 shortAddr a =
-  Data.Text.take 6 a <> "…" <> takeEnd 4 a
+  take 6 a <> "…" <> takeEnd 4 a
+
+isAddr :: Text -> Bool
+isAddr a =
+  length a == 42 && take 2 a == "0x" && fromMaybe 0 (readMay $ unpack a) > (0 :: Integer)

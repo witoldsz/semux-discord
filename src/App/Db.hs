@@ -48,22 +48,22 @@ instance ToJSON AppDb where
 -- UserWallet
 data UserWallet = UserWallet
   { _uwAddr :: !Text
+  , _uwAlias :: !Text
   , _uwUserId :: !UserId
   , _uwChanId :: !ChannelId
-  , _uwLastTx :: !(Maybe Int32)
   } deriving Show
 
 instance FromJSON UserWallet where
   parseJSON = withObject "UserWallet" $ \o ->
     UserWallet <$> o .: "addr"
+               <*> o .: "alias"
                <*> o .: "userId"
                <*> o .: "chanId"
-               <*> o .: "lastTx"
 
 instance ToJSON UserWallet where
   toJSON UserWallet {..} = object
-    [ "addr" .= _uwAddr
+    [ "addr"   .= _uwAddr
+    , "alias"  .= _uwAlias
     , "userId" .= _uwUserId
     , "chanId" .= _uwChanId
-    , "lastTx" .= _uwLastTx
     ]

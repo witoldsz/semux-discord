@@ -13,6 +13,7 @@ description: >-
   <https://github.com/githubuser/semux-discord#readme>
 dependencies:
   - base >= 4.7 && < 5
+  - classy-prelude
   - text
   - Decimal
   - aeson
@@ -44,3 +45,5 @@ tests:
       - '-with-rtsopts=-N'
     dependencies:
       - semux-discord
+default-extensions:
+  - OverloadedStrings
