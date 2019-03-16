@@ -9,7 +9,7 @@ import           App.Semux
 import           App.Db
 import           App.Lib
 import           Discord
-import           Data.Text
+import qualified Data.Text as T
 import           Data.Maybe
 import           Data.Either
 import           Control.Exception.Base
@@ -19,20 +19,30 @@ data DiscordCmd
   | AddWallet UserWallet
   | AddHelp
   | DelWallet !Text
-  | Unrecognized Message
+  | Unrecognized !Text
 
 cmd :: Message -> DiscordCmd
-cmd m@Message {..} = case Data.Text.words messageText of
-  -- TODO: validate addr
-  ("add" : addr : xs) | isAddr addr -> AddWallet $ UserWallet { _uwAddr   = addr
-                                                , _uwAlias  = fromMaybe (shortAddr addr) $ headMay xs
-                                                , _uwChanId = messageChannel
-                                                , _uwUserId = authorOf m
-                                                }
-  ["add"]       -> AddHelp
+cmd m@Message {..} = case commandsToLower (T.words messageText) of
+  ("add" : xs)  -> add xs
   ["del", addr] -> DelWallet addr
   ["hi"]        -> Hi
-  _             -> Unrecognized m
+  _             -> Unrecognized messageText
+
+  where
+    commandsToLower =
+      zipWith ($) (T.toLower : repeat id)
+
+    add args =
+      case args of
+        [addr]          -> add [addr, shortAddr addr]
+        (addr : aliass)
+          | isAddr addr -> AddWallet $ UserWallet { _uwAddr   = addr
+                                                  , _uwAlias  = T.intercalate " " aliass
+                                                  , _uwChanId = messageChannel
+                                                  , _uwUserId = authorOf m
+                                                  }
+          | otherwise   -> AddHelp
+        _               -> AddHelp
 
 authorOf :: Message -> UserId
 authorOf Message {..} =

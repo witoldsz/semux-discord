@@ -11,6 +11,7 @@ import App.Db
 import App.Lib
 import App.Semux
 import App.Discord
+import App.DiscordCmd
 import Discord
 import Control.Concurrent
 import Control.Monad
@@ -46,6 +47,30 @@ useDiscord dbLock semuxApiUrl discord =
       let uws = Prelude.filter (\uw -> _uwChanId uw == messageChannel msg)
                                (_dbUserWallets db)
       sendMessage discord (messageChannel msg) (pack $ show uws)
+      return ()
+
+    handleCmd m (AddWallet uw) = do
+      addUserWallet dbLock uw
+      sendMessage discord (_uwChanId uw) "Sure, no problem…"
+      return ()
+      where
+        msg UserWallet{..} =
+          "Sure, no problem! Account `" <> _uwAddr <> "` added to watch list as _" <> _uwAlias <> "_."
+
+    handleCmd m AddHelp = do
+      sendMessage discord (messageChannel m)
+        "Add a Semux account to my watch list. **I will tell you about each incoming transfer to that address.**\
+        \\nType:\
+        \\n`add addr` or\
+        \\n`add addr alias`,\
+        \\nwhere:\
+        \\n  `addr` is the Semux address (0x…)\
+        \\n  `alias` optional name I will use instead of address\
+        \\n\
+        \\nFor example:\
+        \\n`add 0xd45d3b25fd1d72e9da4dab7637814f138437f446`\
+        \\nor\
+        \\n`add 0xd45d3b25fd1d72e9da4dab7637814f138437f446 Account One`"
       return ()
 
     handleCmd _ (Unrecognized e) = logStr (show e)

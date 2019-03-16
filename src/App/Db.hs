@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE RecordWildCards   #-}
 
 module App.Db where
 
@@ -10,6 +10,19 @@ import Data.Int (Int32)
 import Data.Aeson
 import Data.Text.IO
 import Control.Concurrent.MVar
+
+addUserWallet :: Lock -> UserWallet -> IO ()
+addUserWallet lock uw =
+  withLock
+    (do
+      old <- readDb'
+      let oldUws = _dbUserWallets old
+      if uw `elem` oldUws
+        then return ()
+        else writeDb' (\db -> db { _dbUserWallets = uw : oldUws })
+    )
+    lock
+  --
 
 readDb :: Lock -> IO AppDb
 readDb =
@@ -51,7 +64,7 @@ data UserWallet = UserWallet
   , _uwAlias :: !Text
   , _uwUserId :: !UserId
   , _uwChanId :: !ChannelId
-  } deriving Show
+  } deriving (Eq, Show)
 
 instance FromJSON UserWallet where
   parseJSON = withObject "UserWallet" $ \o ->

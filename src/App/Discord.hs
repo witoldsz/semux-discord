@@ -6,6 +6,7 @@ module App.Discord where
 import App.Semux
 import App.Db
 import App.Lib
+import App.DiscordCmd
 import Discord
 import Data.Text
 import Data.Maybe
@@ -27,7 +28,7 @@ sendMessage discord chan text =
 nextCmd :: Discord -> (Message -> DiscordCmd -> IO ()) -> IO ()
 nextCmd discord handleCmd = do
   logEmptyLine
-  logStr "Listening to next event…"
+  logStr "Listening to Discord event…"
   e <- nextEvent discord
   case e of
     Left err -> logStr (show err)
