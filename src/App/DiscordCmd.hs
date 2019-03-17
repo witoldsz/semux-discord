@@ -1,49 +1,64 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE NoImplicitPrelude #-}
+{-# LANGUAGE RecordWildCards   #-}
 
 module App.DiscordCmd where
 
 import           ClassyPrelude
 import           App.Semux
-import           App.Db
+import           App.Types
 import           App.Lib
 import           Discord
-import qualified Data.Text as T
 import           Data.Maybe
 import           Data.Either
 import           Control.Exception.Base
 
 data DiscordCmd
   = Hi
-  | AddWallet UserWallet
   | AddHelp
-  | DelWallet !Text
+  | AddWallet !UserWallet
+  | DelHelp
+  | DelWallet !DelUserWalletRef
+  | ListWallets
   | Unrecognized !Text
 
+data DelUserWalletRef = DelUserWalletRef
+  { _duwAddr :: !Text
+  , _duwUserId :: !UserId
+  }
+
 cmd :: Message -> DiscordCmd
-cmd m@Message {..} = case commandsToLower (T.words messageText) of
-  ("add" : xs)  -> add xs
-  ["del", addr] -> DelWallet addr
-  ["hi"]        -> Hi
-  _             -> Unrecognized messageText
+cmd m@Message {..} = case commandsToLower $ escDF <$> words messageText of
+  ["add"]        -> AddHelp
+  ["add", addr]  -> add [addr, shortAddr addr]
+  ("add" : xs)   -> add xs
+  ["del"]        -> DelHelp
+  ["del", addr]  -> del addr
+  ["list"]       -> ListWallets
+  ["hi"]         -> Hi
+  xs             -> Unrecognized $ unwords xs
 
   where
+    commandsToLower :: [Text] -> [Text]
     commandsToLower =
-      zipWith ($) (T.toLower : repeat id)
+      zipWith ($) (toLower : repeat id)
 
-    add args =
-      case args of
-        [addr]          -> add [addr, shortAddr addr]
-        (addr : aliass)
-          | isAddr addr -> AddWallet $ UserWallet { _uwAddr   = addr
-                                                  , _uwAlias  = T.intercalate " " aliass
-                                                  , _uwChanId = messageChannel
-                                                  , _uwUserId = authorOf m
-                                                  }
-          | otherwise   -> AddHelp
-        _               -> AddHelp
+    add :: [Text] -> DiscordCmd
+    add (addr : aliasWords)
+      | isAddr addr = AddWallet $ UserWallet { _uwAddr   = addr
+                                             , _uwAlias  = unwords aliasWords
+                                             , _uwChanId = messageChannel
+                                             , _uwUserId = authorOfThisMessage
+                                             }
+      | otherwise   = Unrecognized messageText
 
-authorOf :: Message -> UserId
-authorOf Message {..} =
-  either (\_ -> Snowflake 0) userId messageAuthor
+    del :: Text -> DiscordCmd
+    del addr
+      | isAddr addr = DelWallet $ DelUserWalletRef { _duwAddr = addr
+                                                   , _duwUserId = authorOfThisMessage
+                                                   }
+      | otherwise   = Unrecognized messageText
+
+    authorOfThisMessage :: UserId
+    authorOfThisMessage =
+      either (\_ -> Snowflake 0) userId messageAuthor

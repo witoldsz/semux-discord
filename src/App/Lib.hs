@@ -41,3 +41,13 @@ newLock = newMVar ()
 
 withLock :: IO a -> Lock -> IO a
 withLock io lock = withMVar lock (const io)
+
+-- | Escape Discord formatting tags
+-- TODO
+escDF :: Text -> Text
+escDF = id
+--   (\c -> (c, "\\" <> c)) <$> special
+--   replace "`" "\\`"
+--   where
+--     special :: [Text]
+--     special = ["`", "*", "_", ":"]

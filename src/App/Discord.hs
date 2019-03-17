@@ -33,17 +33,16 @@ nextCmd discord handleCmd = do
   case e of
     Left err -> logStr (show err)
     Right (MessageCreate m) -> onMessageCreate m
-    Right evt -> return ()
+    Right evt               -> return ()
   where
     onMessageCreate m = do
       logStr (show m)
       chan <- restCall discord $ GetChannel (messageChannel m)
       case chan of
-        Left err -> logStr (show err)
-        Right (ChannelDirectMessage _ _ _) -> if shouldIgnoreAuthor m then return ()
-                                                                      else handleCmd m (cmd m)
+        Left err                      -> logStr (show err)
+        Right ChannelDirectMessage {} -> if shouldIgnoreAuthor m then return ()
+                                                                 else handleCmd m (cmd m)
         _ -> return ()
 
     shouldIgnoreAuthor m =
       fromRight True (userIsBot <$> messageAuthor m)
-

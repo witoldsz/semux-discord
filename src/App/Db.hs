@@ -4,6 +4,8 @@
 module App.Db where
 
 import App.Lib
+import App.Types
+import App.DiscordCmd
 import Discord.Types.Prelude (UserId, ChannelId)
 import Data.Text (Text)
 import Data.Int (Int32)
@@ -11,18 +13,32 @@ import Data.Aeson
 import Data.Text.IO
 import Control.Concurrent.MVar
 
-addUserWallet :: Lock -> UserWallet -> IO ()
+addUserWallet :: Lock -> UserWallet -> IO Bool
 addUserWallet lock uw =
   withLock
     (do
-      old <- readDb'
-      let oldUws = _dbUserWallets old
+      oldUws <- _dbUserWallets <$> readDb'
       if uw `elem` oldUws
-        then return ()
-        else writeDb' (\db -> db { _dbUserWallets = uw : oldUws })
+        then return False
+        else writeDb' (\db -> db { _dbUserWallets = uw : oldUws }) >> return True
     )
     lock
   --
+
+delUserWallet :: Lock -> DelUserWalletRef -> IO Bool
+delUserWallet lock DelUserWalletRef{..} =
+  withLock
+    (do
+      oldUws <- _dbUserWallets <$> readDb'
+      let newUws = filter (not . matches) oldUws
+      if length oldUws == length newUws
+        then return False
+        else writeDb' (\db -> db { _dbUserWallets = newUws }) >> return True
+    )
+    lock
+  where
+    matches UserWallet{..} =
+      _uwAddr == _duwAddr && _uwUserId == _duwUserId
 
 readDb :: Lock -> IO AppDb
 readDb =
@@ -41,42 +57,3 @@ writeDb' updFn =
   updFn <$> readDb' >>=
     Data.Text.IO.writeFile "./db.json" . prettyJson
 
--- AppDb
-data AppDb = AppDb
-  { _dbLatestBlockNumber :: Maybe Int32
-  , _dbUserWallets :: [UserWallet]
-  } deriving Show
-
-instance FromJSON AppDb where
-  parseJSON = withObject "AppDb" $ \o ->
-    AppDb <$> o .: "latestBlockNumber"
-          <*> o .: "userWallets"
-
-instance ToJSON AppDb where
-  toJSON AppDb {..} = object
-    [ "latestBlockNumber" .= _dbLatestBlockNumber
-    , "userWallets" .= _dbUserWallets
-    ]
-
--- UserWallet
-data UserWallet = UserWallet
-  { _uwAddr :: !Text
-  , _uwAlias :: !Text
-  , _uwUserId :: !UserId
-  , _uwChanId :: !ChannelId
-  } deriving (Eq, Show)
-
-instance FromJSON UserWallet where
-  parseJSON = withObject "UserWallet" $ \o ->
-    UserWallet <$> o .: "addr"
-               <*> o .: "alias"
-               <*> o .: "userId"
-               <*> o .: "chanId"
-
-instance ToJSON UserWallet where
-  toJSON UserWallet {..} = object
-    [ "addr"   .= _uwAddr
-    , "alias"  .= _uwAlias
-    , "userId" .= _uwUserId
-    , "chanId" .= _uwChanId
-    ]
