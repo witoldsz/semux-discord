@@ -25,10 +25,8 @@ sendMessage :: Discord -> ChannelId -> Text -> IO (Either RestCallException Mess
 sendMessage discord chan text =
   restCall discord $ CreateMessage chan text
 
-nextCmd :: Discord -> (Message -> DiscordCmd -> IO ()) -> IO ()
+nextCmd :: Discord -> ((Message, DiscordCmd) -> IO ()) -> IO ()
 nextCmd discord handleCmd = do
-  logEmptyLine
-  logStr "Listening to Discord event…"
   e <- nextEvent discord
   case e of
     Left err -> logStr (show err)
@@ -36,12 +34,11 @@ nextCmd discord handleCmd = do
     Right evt               -> return ()
   where
     onMessageCreate m = do
-      logStr (show m)
       chan <- restCall discord $ GetChannel (messageChannel m)
       case chan of
         Left err                      -> logStr (show err)
         Right ChannelDirectMessage {} -> if shouldIgnoreAuthor m then return ()
-                                                                 else handleCmd m (cmd m)
+                                                                 else handleCmd (m, cmd m)
         _ -> return ()
 
     shouldIgnoreAuthor m =

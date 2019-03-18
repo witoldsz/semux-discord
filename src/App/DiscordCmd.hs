@@ -21,11 +21,12 @@ data DiscordCmd
   | DelWallet !DelUserWalletRef
   | ListWallets
   | Unrecognized !Text
+  deriving (Show)
 
 data DelUserWalletRef = DelUserWalletRef
   { _duwAddr :: !Text
   , _duwUserId :: !UserId
-  }
+  } deriving (Show)
 
 cmd :: Message -> DiscordCmd
 cmd m@Message {..} = case commandsToLower $ escDF <$> words messageText of

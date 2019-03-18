@@ -8,21 +8,18 @@ import Discord
 import Data.Int (Int32)
 import Data.Text (Text)
 
--- AppDb
-data AppDb = AppDb
+-- SemuxDb
+data SemuxDb = SemuxDb
   { _dbLatestBlockNumber :: Maybe Int32
-  , _dbUserWallets :: [UserWallet]
   } deriving Show
 
-instance FromJSON AppDb where
-  parseJSON = withObject "AppDb" $ \o ->
-    AppDb <$> o .: "latestBlockNumber"
-          <*> o .: "userWallets"
+instance FromJSON SemuxDb where
+  parseJSON = withObject "SemuxDb" $ \o ->
+    SemuxDb <$> o .: "latestBlockNumber"
 
-instance ToJSON AppDb where
-  toJSON AppDb {..} = object
+instance ToJSON SemuxDb where
+  toJSON SemuxDb {..} = object
     [ "latestBlockNumber" .= _dbLatestBlockNumber
-    , "userWallets" .= _dbUserWallets
     ]
 
 -- UserWallet

@@ -32,19 +32,19 @@ useDiscord dbLock semuxApiUrl discord =
   bracket
     (forkIO $ forever querySemuxForNewBlocks)
     killThread
-    (\_ -> listenToCmds)
+    (const listenToCmds)
 
   where
-    listenToCmds =
-      nextCmd discord handleCmd >> listenToCmds
+    listenToCmds = do
+      nextCmd discord (handleCmd <=< logIncommingCmd)
+      listenToCmds
 
     answer :: Message -> Text -> IO ()
-    answer m txt = do
-      sendMessage discord (messageChannel m) txt
-      return ()
+    answer m =
+      void . sendMessage discord (messageChannel m)
 
-    handleCmd :: Message -> DiscordCmd -> IO ()
-    handleCmd m Hi =
+    handleCmd :: (Message, DiscordCmd) -> IO ()
+    handleCmd (m, Hi) =
       answer m
         "Hi! My name is _Semux Online Discord Bot_.\
         \\nWhat do I do, you ask? Well, I am monitoring the Semux blockchain.\
@@ -56,18 +56,18 @@ useDiscord dbLock semuxApiUrl discord =
         \\n\
         \\nCommands I understand:\
         \\n- `hi` my greetings and list of commands I can handle.\
-        \\n- `add` to let me watch an an account for you.\
+        \\n- `add` to let me watch an account for you.\
         \\n- `del` to stop me watching an account.\
-        \\n- `list` to see which accounts I watch for you.\
+        \\n- `list` to see which accounts I do watch for you.\
         \\n\
         \\nGo ahead and type one of these."
 
-    handleCmd m (Unrecognized t) =
+    handleCmd (m, Unrecognized t) =
       answer m $
         "`" <> t <> "`?\
-        \\nI am not **that** smart. Say `hi` to get us know better :)"
+        \\nI don't understand. Say `hi` to get us know better :)"
 
-    handleCmd m AddHelp =
+    handleCmd (m, AddHelp) =
       answer m
         "Add a Semux account to my watch list. **I will tell you about each incoming transfer to that address.**\
         \ Use `list` command to see the accounts I watch already.\
@@ -83,7 +83,7 @@ useDiscord dbLock semuxApiUrl discord =
         \\nor\
         \\n`add 0xd45d3b25fd1d72e9da4dab7637814f138437f446 Account One`"
 
-    handleCmd m DelHelp =
+    handleCmd (m, DelHelp) =
       answer m
         "Removes an account from the list. Use `list` command to see which they are.\
         \\nType:\
@@ -94,7 +94,7 @@ useDiscord dbLock semuxApiUrl discord =
         \\nFor example:\
         \\n`del 0xd45d3b25fd1d72e9da4dab7637814f138437f446`"
 
-    handleCmd m (AddWallet uw) = do
+    handleCmd (m, AddWallet uw) = do
       ok <- addUserWallet dbLock uw
       answer m $
         withHint $ if ok
@@ -103,68 +103,75 @@ useDiscord dbLock semuxApiUrl discord =
       where
         withHint = (<> " Type `list` to see all.")
 
-    handleCmd m (DelWallet ref) = do
+    handleCmd (m, DelWallet ref) = do
       ok <- delUserWallet dbLock ref
       answer m $
         withHint $ if ok
-          then "Sure, forget about it, done."
-          else "There must've been some misunderstading… I've been not watching this account for you."
+          then "OK, let's forget about that account."
+          else "There must've been some misunderstading… I haven't been watching this account for you."
       where
         withHint = (<> " Type `list` to see all.")
 
-    handleCmd m ListWallets = do
-      uws <- filter matches . _dbUserWallets <$> readDb dbLock
+    handleCmd (m, ListWallets) = do
+      uws <- filter matches <$> listWallets dbLock
       answer m $
         case length uws of
-          0 -> "I am not watching for any accounts for you. Please use `add` command."
+          0 -> "I am not watching any accounts for you. Use `add` command."
           1 -> "There is one account I am watching for you:\n" <> prettyUws uws
           x -> "There are " <> tshow x <> " accounts I am watching for you:\n" <> prettyUws uws
 
       where
         matches uw = _uwChanId uw == messageChannel m
-        prettyUw :: UserWallet -> Text
         prettyUw uw = "`" <> _uwAddr uw <> "` _" <> _uwAlias uw <> "_"
-        prettyUws :: [UserWallet] -> Text
-        prettyUws uws = intercalate "\n" (prettyUw <$> uws)
+        prettyUws uws = intercalate "\n" (prettyUw <$> uws :: [Text])
 
     querySemuxForNewBlocks = do
-      db <- readDb dbLock
-      let latestBlockNumber = _dbLatestBlockNumber db
+      latestBlockNumber <- _dbLatestBlockNumber <$> readSemuxDb dbLock
       maybeBlock <- getBlock semuxApiUrl $ (+1) <$> latestBlockNumber
 
       mapM_
         (\block -> do
           let blockNr = _blockNumber block
-          logStr $ "Processing block #" ++ show blockNr
-          mapM_
-            publish
-            (matchTxsToWallets (_dbUserWallets db) (_blockTxs block))
-
-          writeDb dbLock (\newDb -> newDb { _dbLatestBlockNumber = Just blockNr })
+          findings <- matchTxsToWallets (_blockTxs block) <$> listWallets dbLock
+          logProcessingBlock blockNr findings
+          mapM_ publish findings
+          writeSemuxDb dbLock (\newDb -> newDb { _dbLatestBlockNumber = Just blockNr })
         )
         maybeBlock
 
       threadDelay 10e6
       where
         publish :: (UserWallet, SemuxTx) -> IO ()
-        publish (uw,tx) = do
-          sendMessage discord (_uwChanId uw) (messageFormatter (uw,tx))
-          return ()
+        publish (uw,tx) =
+          void $ sendMessage discord (_uwChanId uw) (messageFormatter (uw,tx))
 
-matchTxsToWallets :: [UserWallet] -> [SemuxTx] -> [(UserWallet, SemuxTx)]
-matchTxsToWallets uws txs =
-  [(uw, tx) | uw <- uws, tx <- txs
-    , _uwAddr uw == _txTo tx
-    , _txType tx == "TRANSFER"
-    ]
+        matchTxsToWallets :: [SemuxTx] -> [UserWallet] -> [(UserWallet, SemuxTx)]
+        matchTxsToWallets txs uws =
+          [(uw, tx) | uw <- uws, tx <- txs
+          , _uwAddr uw == _txTo tx
+          , _txType tx == "TRANSFER"
+          ]
 
-messageFormatter :: (UserWallet, SemuxTx) -> Text
-messageFormatter (UserWallet{..}, SemuxTx{..}) =
-  mconcat
-    [ "```"
-    , "\nIncoming transfer"
-    , "\n📥 ", shortAddr _txTo
-    , "\n💰 ", formatSem _txValue, " SEM "
-    , "\n📤 ", shortAddr _txFrom
-    , "\n```"
-    ]
+        messageFormatter :: (UserWallet, SemuxTx) -> Text
+        messageFormatter (UserWallet{..}, SemuxTx{..}) =
+          "```\
+          \\nIncoming transfer " <> formatSem _txValue <> " SEM \
+          \\nfrom " <> shortAddr _txFrom <> "\
+          \\nto " <> _uwAlias <> "\
+          \\n```"
+
+-- surveillance
+
+logIncommingCmd :: (Message, DiscordCmd) -> IO (Message, DiscordCmd)
+logIncommingCmd arg@(m@Message{..}, cmd) = do
+  logText $ author <> ": " <> messageText <> " :: " <> tshow cmd
+  return arg
+  where
+    author = either tshow (pack . userName) messageAuthor
+
+logProcessingBlock :: Int32 -> [a] -> IO ()
+logProcessingBlock blockNr matchingTxs =
+  logStr $ "Processing block #" <> show blockNr <> finding matchingTxs
+  where
+    finding [] = ""
+    finding xs = " publishing " <> show (length xs) <> " notifications"
