@@ -1,43 +1,18 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE RecordWildCards   #-}
 
 module Main where
 
-import Semux (getLastCoinbase)
-import Discord (alert)
+import App.App
 import System.Environment
-import Data.Time.Clock
+import System.IO
 
 main :: IO ()
 main = do
-  semuxApi <- getEnv "SEMUX_API"
-  delegate <- getEnv "DELEGATE"
-  webhookUrl <- getEnv "WEBHOOK_URL"
-  alertAfterSecs <- read <$> getEnv "ALERT_AFTER_SECS" :: IO Int
+  hSetBuffering stdout LineBuffering
+  hSetBuffering stderr NoBuffering
 
-  lastCoinbase <- getLastCoinbase semuxApi delegate
-  now <- getCurrentTime
-  let diff = diffSeconds now lastCoinbase
+  semuxApiUrl <- getEnv "SEMUX_API"
+  dicordSecret <- getEnv "DISCORD_SECRET"
 
-  if (diff > alertAfterSecs)
-    then do
-      let msg = alertMessage delegate lastCoinbase diff
-      alert webhookUrl msg
-      putStrLn msg
-    else
-      putStrLn $ "Last COINBASE was " ++ show lastCoinbase ++ " that is " ++ show diff ++ " seconds ago. OK."
-
-diffSeconds :: UTCTime -> UTCTime -> Int
-diffSeconds t1 t2 =
-  let (res, _) = properFraction $ diffUTCTime t1 t2
-  in res
-
-alertMessage :: String -> UTCTime -> Int -> String
-alertMessage delegate lastCoinbase diff =
-  "Alert! `"
-    ++ delegate
-    ++ "` hasn't forged since `"
-    ++ show lastCoinbase
-    ++ "` (i.e. "
-    ++ show diff
-    ++ " seconds ago). This isn't good."
+  app Configuration{..}

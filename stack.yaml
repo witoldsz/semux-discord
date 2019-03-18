@@ -37,7 +37,9 @@ packages:
 # Dependency packages to be pulled from upstream that are not in the resolver
 # using the same syntax as the packages field.
 # (e.g., acme-missiles-0.3)
-# extra-deps: []
+extra-deps:
+- git: https://github.com/aquarial/discord-haskell.git
+  commit: ce3b6d317520f77ccc4f9db61ab5a7591572f9df
 
 # Override default flag values for local packages and extra-deps
 # flags: {}
